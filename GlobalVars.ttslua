@@ -1,0 +1,64 @@
+--we put all our stuff in a table under global, so we don't interfere with other people's stuff
+NUM_GLOBAL_PREFIX = '__NUM_GLOBAL_'
+
+--when objects set 'constant' values, we record it here.
+NUM_GLOBAL_OBJ_SETTER_PREFIX = '__OBJ_NUM_GLOBAL_'
+
+--sets a global value, cannot be a table! (according to TTS documentation for setVar)
+--but objects seem to be ok
+function setGlobalValue(name,val)
+  Global.setVar(NUM_GLOBAL_PREFIX..name,val);
+end
+
+--gets a global value, set with either setConstGlobalValue or setGlobalValue
+function getGlobalValue(name)
+  local v = Global.getVar(NUM_GLOBAL_PREFIX..name)
+
+  if(v == nil) then
+    print("Warning: Can't find Numenera Value for: "..name)
+  end
+
+  return v
+end
+
+-- function flashObj(obj,count)
+--   obj.highlightOff()
+--   obj.highlightOn({r=1,g=1,b=1})
+--   Wait.condition(function() return false end,function() return false end,1,
+--     function()
+--       obj.highlightOff()
+--       obj.highlightOn({r=1,g=0,b=0})
+--       if count <= 0 then return end
+--       flashObj(obj,count-1)
+--     end)
+--   obj.highlightOff()
+-- end
+
+
+--highlights an object if not nil
+function maybeHighlightObj(name,obj)
+  if(obj ~= nil) then
+    print("Highlighting "..name.." guid: "..obj.getGUID())
+    obj.highlightOn({r=1,g=0,b=0},15)
+  else
+    print(name.." does not have an associated object")
+  end
+end
+
+--sets a variable that is supposed to be constant
+--if two objects set it to different values, will physically highlight those objects on the table
+--
+--Useful for having an object on the table that is supposed to be unique and referable by name
+function setConstGlobalValue(myObj,name,myV)
+  local othV = Global.getVar(NUM_GLOBAL_PREFIX..name)
+  if(othV ~= nil and othV ~= myV) then
+    print("Warning: two objects are attempting to set the variable..")
+    local otherObj = Global.getVar(NUM_GLOBAL_OBJ_SETTER_PREFIX..name)
+
+    maybeHighlightObj("obj1",otherObj)
+    maybeHighlightObj("obj2",myObj)
+  end
+
+  setGlobalValue(name,myV)
+  Global.setVar(NUM_GLOBAL_OBJ_SETTER_PREFIX..name,myObj)
+end

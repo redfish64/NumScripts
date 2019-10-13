@@ -1,0 +1,3 @@
+#include ActionD100
+
+IS_TENS_DIE = true

@@ -1,0 +1,44 @@
+
+function calcVec3LengthSqr(x,y,z)
+  return x*x + y*y + z*z
+end
+
+--finds the closest match for a given color tint to a player color
+function getColorTextFromColor(myColor)
+  local COLOR_TEXT_TO_TINT = {
+    White={r=1, g=1, b=1},
+    Brown={r=0.443, g=0.231, b=0.09},
+    Yellow={r=0.905, g=0.898, b=0.172},
+    Red={r=0.856, g=0.1, b=0.094},
+    Orange={r=0.956, g=0.392, b=0.113},
+    Green={r=0.192, g=0.701, b=0.168},
+    Teal={r=0.129, g=0.694, b=0.607},
+    Blue={r=0.118, g=0.53, b=1},
+    Purple={r=0.627, g=0.125, b=0.941},
+    Pink={r=0.96, g=0.439, b=0.807},
+    Grey={r=0.5, g=0.5, b=0.5},
+    Black={r=0.25, g=0.25, b=0.25}
+  }
+
+  closestColor='Unknown'
+  closestDist=9999999
+  -- print("myColor"..myColor)
+  for colorText,color in pairs(COLOR_TEXT_TO_TINT) do
+    local dist = calcVec3LengthSqr(color.r - myColor.r, color.g - myColor.g, color.b - myColor.b )
+    if(dist < closestDist) then
+      closestColor=colorText
+      closestDist = dist
+    end
+   end
+   return closestColor
+ end
+
+ function tablelength(T)
+   local count = 0
+   for _ in pairs(T) do count = count + 1 end
+   return count
+ end
+--gets the max number of sides on a die
+function getNumDieSides(obj)
+  return tablelength(obj.getRotationValues())
+end

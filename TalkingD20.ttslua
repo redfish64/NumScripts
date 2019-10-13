@@ -1,0 +1,71 @@
+#include GlobalVars
+#include ObjUtil
+
+function onObjectRandomize(object,colorText)
+  if object == self then
+    afterDrop()
+  end
+end
+
+function isFastEnough(vel)
+  local lenSqr = vel.x * vel.x + vel.y * vel.y + vel.z * vel.z
+  --print("lenSqr "..lenSqr)
+  return lenSqr > 300
+end
+
+function onDropped()
+  if(isFastEnough(self.getVelocity())) then
+    afterDrop()
+  end
+end
+
+function checkResting(target)
+    return target.resting
+end
+
+
+function rollEnd()
+  local color = self.getColorTint()
+  local value = self.getValue()
+  local colorText = getColorTextFromColor(color)
+  if value == 1 then
+      broadcastToAll("GM Instrusion!", color)
+  elseif value == 2 then
+      broadcastToAll("Failure", color)
+  elseif value == 17 then
+      broadcastToAll("17 (LVL 5) [[+1 Damage]]", color)
+  elseif value == 18 then
+      broadcastToAll("18 (LVL 6) [[+2 Damage]]", color)
+  elseif value == 19 then
+      broadcastToAll("Success - Minor Effect!", color)
+      getGlobalValue('MinorEffectDeck').deal(1,colorText)
+  elseif value == 20 then
+      broadcastToAll("Epic Success - Major Effect!", color)
+      getGlobalValue('MajorEffectDeck').deal(1,colorText)
+  else
+      broadcastToAll(value.." (LVL "..math.floor(value/3)..")", color)
+  end
+
+  afterDropLock = false
+end
+
+afterDropLock = false
+
+function afterDrop()
+  if(afterDropLock == false) then
+    afterDropLock = true
+
+    local watchF = function() return self.resting end
+    local endF = function() rollEnd() end
+
+    Wait.condition(endF, watchF)
+  end
+end
+
+-- function onObjectEnterScriptingZone(zone,obj)
+--     if (zone.getGUID() == Global.PLAY_AREA_GUI and obj == self) then reportRollBlue=true end
+-- end
+--
+-- function onObjectLeaveScriptingZone(zone,obj)
+--     if (zone.getGUID() == PLAY_AREA_GUI and obj == self) then reportRollBlue=false end
+-- end
