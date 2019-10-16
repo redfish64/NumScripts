@@ -5,7 +5,45 @@
 --useful for using a couple of d10's to simulate a d100 for example
 
 --SET "ACTION_TABLE" to override
-DEFAULT_ACTION_FUNCTION = function (obj,value,color, colorText) broadcastToAll(colorText.." D"..getNumDieSides(self).." rolled forZZZ: "..value,color) end
+DEFAULT_ACTION_FUNCTION = function (obj,value,color, colorText)
+    -- local dr = getDiceRolledAtSameTime()
+    -- local f = foo(dr)
+    --
+    -- if(f.d10tens ~= nil and f.d10ones ~= nil) then
+    --   f.d100 = f.d10tens * 10 + f.d10ones
+    --   f.d10tens = nil
+    --   f.d10ones = nil
+    -- end
+    --
+    -- sortedKeys = sortTable(f,
+    --   function(left,right)
+    --     if(string.len(left) ~= string.len(right)) then
+    --       return string.len(left) < string.len(right)
+    --     end
+    --
+    --     return left < right
+    --   end
+    --   )
+    --
+    -- local t = ""
+    -- local total = 0
+    --
+    -- for i,key in ipairs(sortedKeys)
+    --   if(i ~= 1) then t = t.."," end
+    --   t = t..key
+    --   total = total + key
+    -- end
+    --
+    broadcastToAll(colorText.." D"..getNumDieSides(self).." rolled for: "..value,color)
+  end
+
+function getDiceRolledAtSameTime(obj)
+  local er = getGlobalValue(rollEndTimeName(obj))
+  local sr = getGlobalValue(rollStartTimeName(obj))
+
+
+end
+
 
 function onObjectRandomize(object,colorText)
   if object == self then
@@ -29,59 +67,121 @@ function checkResting(target)
     return target.resting
 end
 
---the last time a die roll was started with the given DIE_NAME and color text
-function getDieRollStartTime(self,die_name)
-  getGlobalValue(getDieGlobalVar(self,"ROLL_START_TIME",die_name))
+-- --the last time a die roll was started with the given DIE_NAME and color text
+-- function getDieRollStartTime(self,die_name)
+--   getGlobalValue(getDieGlobalVar(self,"ROLL_START_TIME",die_name))
+-- end
+--
+-- --the last time a die roll was ended with the given DIE_NAME and color text
+-- function getDieRollEndTime(self,die_name)
+--   getGlobalValue(getDieGlobalVar(self,"ROLL_END_TIME",die_name))
+-- end
+--
+-- function getDieGlobalVar(obj,name,die_name)
+--   return getColorTextFromColor(self.getColorTint()).."_"..name.."_"..die_name
+-- end
+
+function rollStartTimeName(obj)
+  return "DIE_ROLL_START_"..getColorTextFromColor(obj.getColorTint());
 end
 
---the last time a die roll was ended with the given DIE_NAME and color text
-function getDieRollEndTime(self,die_name)
-  getGlobalValue(getDieGlobalVar(self,"ROLL_END_TIME",die_name))
+function rollEndTimeName(obj)
+  return "DIE_ROLL_END_"..getColorTextFromColor(obj.getColorTint());
 end
 
-function getDieGlobalVar(obj,name,die_name)
-  return getColorTextFromColor(self.getColorTint()).."_"..name.."_"..die_name
+function setRollStartTime(obj,time)
+  updateGlobalValue(rollStartTimeName(obj),
+    function(t)
+      t[obj] = time
+      return t
+    end,{})
 end
+
+function setRollEndTime(obj,time)
+  updateGlobalValue(rollEndTimeName(obj),
+    function(t)
+      t[obj] = time
+      return t
+    end,{})
+end
+
+--return true if die1 has an end rolling time greater than die2.
+--We use the guid to break ties
+function didDieFinishRollingBeforeOtherDie(die1,die2)
+  if(die1.getVar('afterDropLock')) then
+    return true
+  end
+  return false
+  -- local sr = getGlobalValue(rollStartTimeName(die1))
+  -- local er = getGlobalValue(rollEndTimeName(die1))
+  -- local st1 = sr[die1]
+  -- local et1 = er[die1]
+  -- local st2 = sr[die2]
+  -- local et2 = er[die2]
+  --
+  -- --if die1 is still rolling
+  -- if(et1 == nil or st1 > et1) then
+  --
+  -- local v = (et1 == nil or et2 ~= nil and
+  --     (et1 > et2 or et1 == et2 and die1.getGUID() > die2.getGUID()))
+  -- print("et1 ",et1," et2 ",et2," v ",v)
+  --
+  -- return v
+end
+
+function isLastDieToRoll(obj)
+  local er = getGlobalValue(rollEndTimeName(obj))
+  local sr = getGlobalValue(rollStartTimeName(obj))
+
+  local mySt = sr[obj]
+  local myEt = er[obj]
+
+  for die in pairs(sr) do
+    if(die ~= obj) then
+      local st = sr[die]
+      local et = er[die]
+
+      if(didDieFinishRollingBeforeOtherDie(die,obj)) then
+        return false -- this will exit the function
+      end
+    end
+  end
+
+  return true
+end
+
+--used to make sure we don't get two roll actions occuring simulataneously
+afterDropLock = false
 
 function rollEnd()
   local color = self.getColorTint()
   local value = self.getValue()
   local colorText = getColorTextFromColor(color)
 
-  if(DIE_NAME ~= nil) then
-    setGlobalValue(getDieGlobalVar(self,"ROLL_END_TIME",DIE_NAME),os.clock())
-  end
+  setRollEndTime(self,os.clock())
 
-  if(ACTION_FUNCTION ~= nil) then
-    ACTION_FUNCTION(obj,value,color,colorText)
-  else
-    DEFAULT_ACTION_FUNCTION(obj,value,color,colorText)
+  if(isLastDieToRoll(self)) then
+    if(ACTION_FUNCTION ~= nil) then
+      ACTION_FUNCTION(obj,value,color,colorText)
+    else
+      DEFAULT_ACTION_FUNCTION(obj,value,color,colorText)
+    end
   end
 
   afterDropLock = false
 end
 
-afterDropLock = false
-
 function afterDrop()
-  if(afterDropLock == false) then
-    afterDropLock = true
-
-    if(DIE_NAME ~= nil) then
-      setGlobalValue(getDieGlobalVar(self,"ROLL_START_TIME",DIE_NAME),os.clock())
-    end
-
-    local watchF = function() return self.resting end
-    local endF = function() rollEnd() end
-
-    Wait.condition(endF, watchF)
+  if(afterDropLock == true) then
+    return
   end
-end
 
--- function onObjectEnterScriptingZone(zone,obj)
---     if (zone.getGUID() == Global.PLAY_AREA_GUI and obj == self) then reportRollBlue=true end
--- end
---
--- function onObjectLeaveScriptingZone(zone,obj)
---     if (zone.getGUID() == PLAY_AREA_GUI and obj == self) then reportRollBlue=false end
--- end
+  afterDropLock = true
+
+  setRollStartTime(self,os.clock())
+
+  local watchF = function() return self.resting end
+  local endF = function() rollEnd() end
+
+  Wait.condition(endF, watchF)
+end

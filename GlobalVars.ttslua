@@ -1,21 +1,48 @@
 --we put all our stuff in a table under global, so we don't interfere with other people's stuff
-NUM_GLOBAL_PREFIX = '__NUM_GLOBAL_'
+NUM_GLOBAL_VAR = '__NUM_GLOBAL_VAR'
 
 --when objects set 'constant' values, we record it here.
-NUM_GLOBAL_OBJ_SETTER_PREFIX = '__OBJ_NUM_GLOBAL_'
+NUM_GLOBAL_OBJ_SETTER_VAR = '__NUM_GLOBAL_OBJ'
 
---sets a global value, cannot be a table! (according to TTS documentation for setVar)
---but objects seem to be ok
+function ensureGlobalTablesExist()
+  if(Global.getTable(NUM_GLOBAL_VAR) == nil) then
+    Global.setTable(NUM_GLOBAL_VAR,{})
+  end
+  if(Global.getTable(NUM_GLOBAL_OBJ_SETTER_VAR) == nil) then
+    Global.setTable(NUM_GLOBAL_OBJ_SETTER_VAR,{})
+  end
+end
+
+--sets a global value
 function setGlobalValue(name,val)
-  Global.setVar(NUM_GLOBAL_PREFIX..name,val);
+  ensureGlobalTablesExist()
+  local t = Global.getTable(NUM_GLOBAL_VAR);
+  t[name]=val
+  Global.setTable(NUM_GLOBAL_VAR,t);
 end
 
 --gets a global value, set with either setConstGlobalValue or setGlobalValue
 function getGlobalValue(name)
-  local v = Global.getVar(NUM_GLOBAL_PREFIX..name)
+  ensureGlobalTablesExist()
+  local t = Global.getTable(NUM_GLOBAL_VAR);
+  local v = t[name]
 
   if(v == nil) then
-    print("Warning: Can't find Numenera Value for: "..name)
+    print("Warning: Can't find NumScript Value for: "..name)
+  end
+
+  return v
+end
+
+--gets a global value, set with either setConstGlobalValue or setGlobalValue
+function getGlobalValueWithDef(name,def)
+  ensureGlobalTablesExist()
+  local t = Global.getTable(NUM_GLOBAL_VAR);
+
+  local v = t[name]
+
+  if(v == nil) then
+    return def
   end
 
   return v
@@ -45,20 +72,35 @@ function maybeHighlightObj(name,obj)
   end
 end
 
+--updates an existing global value using a function. Uses
+--default if value is nil
+function updateGlobalValue(name,func,default)
+  local v = func(getGlobalValueWithDef(name,default))
+  setGlobalValue(name,v)
+end
+
 --sets a variable that is supposed to be constant
 --if two objects set it to different values, will physically highlight those objects on the table
 --
 --Useful for having an object on the table that is supposed to be unique and referable by name
 function setConstGlobalValue(myObj,name,myV)
-  local othV = Global.getVar(NUM_GLOBAL_PREFIX..name)
+  ensureGlobalTablesExist()
+  local t = Global.getTable(NUM_GLOBAL_VAR);
+  local ts = Global.getTable(NUM_GLOBAL_OBJ_SETTER_VAR);
+
+  local othV = t[name]
+
   if(othV ~= nil and othV ~= myV) then
     print("Warning: two objects are attempting to set the variable..")
-    local otherObj = Global.getVar(NUM_GLOBAL_OBJ_SETTER_PREFIX..name)
+    local otherObj = ts[name]
 
     maybeHighlightObj("obj1",otherObj)
     maybeHighlightObj("obj2",myObj)
   end
 
-  setGlobalValue(name,myV)
-  Global.setVar(NUM_GLOBAL_OBJ_SETTER_PREFIX..name,myObj)
+  t[name]=v
+  Global.setTable(NUM_GLOBAL_VAR,ts)
+
+  ts[name] = myObj
+  Global.setTable(NUM_GLOBAL_OBJ_SETTER_VAR,ts)
 end

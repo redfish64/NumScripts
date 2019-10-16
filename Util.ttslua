@@ -1,0 +1,12 @@
+
+--sets a default value for a table, copied from https://www.lua.org/pil/13.4.3.html
+function setDefault (t, d)
+   local mt = {__index = function () return d end}
+   setmetatable(t, mt)
+end
+
+function createEmptyTableWithDefault(d)
+  local t = {}
+  setDefault(t,d)
+  return t
+end
