@@ -86,22 +86,35 @@ function getDiceHistogramWD100(rolledDice)
     res[type] = val
   end
 
+  local tens = res[DIE_TYPE_D10_TENS]
+  local ones = res[DIE_TYPE_D10]
+
   --if the same number of D10 TENs as D10 ones have been rolled, we
   --consider it a D100
-  if(res[DIE_TYPE_D10_TENS] ~= nil and res[DIE_TYPE_D10] ~= nil
-     and res[DIE_TYPE_D10_TENS][1] == res[DIE_TYPE_D10][1]) then
+  if(tens ~= nil and ones ~= nil
+     and tens[1] == 1 and ones[1] == 1) then
 
-    --create a d100 for each pair
+    --create a d100
     local d100 = {0,0}
-    d100[1] = res[DIE_TYPE_D10_TENS][1]
-    d100[2] = res[DIE_TYPE_D10_TENS][2]*10
-                + res[DIE_TYPE_D10][2]
+
+    d100[1] = 1
+    if(tens[2] == 10) then
+      if(ones[2] == 10) then
+        d100[2] = 100
+      else
+        d100[2] = ones[2]
+      end
+    else
+      d100[2] = tens[2] * 10 + ones[2]
+    end
 
     res[DIE_TYPE_D100] = d100
 
     -- remove the individual dice
     res[DIE_TYPE_D10_TENS] = nil
     res[DIE_TYPE_D10] = nil
+  elseif (tens ~= nil) then
+    res[DIE_TYPE_D10_TENS][2] = tens[2] * 10
   end
 
   return res
