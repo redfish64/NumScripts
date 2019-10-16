@@ -1,6 +1,6 @@
-DICE_TYPE_D10_TENS = "d10Tens"
-DICE_TYPE_D10 = "d10"
-DICE_TYPE_D100 = "d100"
+DIE_TYPE_D10_TENS = "d10Tens"
+DIE_TYPE_D10 = "d10"
+DIE_TYPE_D100 = "d100"
 
 #include Util
 #include GlobalVars
@@ -13,11 +13,8 @@ DICE_TYPE_D100 = "d100"
 
 --SET "ACTION_TABLE" to override
 DEFAULT_ACTION_FUNCTION = function (obj,value,color, colorText)
-  print("ho",obj)
   local dr = getDiceRolledAtSameTime(obj)
-  print("hi, ",dr[1].call('getDieType'),obj)
   local hist = getDiceHistogramWD100(dr)
-  print("honk")
 
   local diceNamesText=""
   local totalValue = 0
@@ -46,14 +43,12 @@ function getDieType(obj)
     return obj.getVar('DIE_TYPE')
   end
 
-  return "d"..obj.getNumDieSides(obj)
+  return "d"..getNumDieSides(obj)
 end
 
 function getDiceRolledAtSameTime(obj)
-  print("hyyy",obj)
   local er = getGlobalValue(rollEndTimeName(obj))
   local sr = getGlobalValue(rollStartTimeName(obj))
-  print("xxx")
 
   local mySt = sr[obj]
   local myEt = er[obj]
@@ -65,48 +60,48 @@ function getDiceRolledAtSameTime(obj)
       local et = er[die]
 
       if(et > mySt and et < myEt) then
-        print("including ",die.getDieType())
         table.insert(diceRolledAtSameTime,die)
       end
     end
   end
 
-  print("xxzzzzx")
   return diceRolledAtSameTime
 end
 
 --returns a table of die type to an array of number of dice and total value
---if the same number of dice of die type DICE_TYPE_D10_TENS and dice of die type DICE_TYPE_D10
+--if the same number of dice of die type DIE_TYPE_D10_TENS and dice of die type DIE_TYPE_D10
 --are rolled, will replace with D100's calculated properly
 function getDiceHistogramWD100(rolledDice)
-  print("zonk",rolledDice)
   local res = {}
 
-  setDefault(res,{0,0})
+  for i,die in pairs(rolledDice) do
+    local type = getDieType(die)
 
-  for die in pairs(rolledDice) do
-    print("dice ",die)
-    local type = die.call('getDieType')
-
-    local val = res{type}
+    local val = res[type]
+    if(val == nil) then val = {0,0} end
 
     val[1] = val[1] + 1
     val[2] = val[2] + die.getValue()
+
+    res[type] = val
   end
 
   --if the same number of D10 TENs as D10 ones have been rolled, we
   --consider it a D100
-  if(res[DICE_TYPE_D10TENS][1] ~= 0
-     and res[DICE_TYPE_D10TENS][1] == res[DICE_TYPE_D10][1]) then
+  if(res[DIE_TYPE_D10_TENS] ~= nil and res[DIE_TYPE_D10] ~= nil
+     and res[DIE_TYPE_D10_TENS][1] == res[DIE_TYPE_D10][1]) then
 
     --create a d100 for each pair
-    res[DICE_TYPE_D100][1] = res[DICE_TYPE_D10_TENS][1]
-    res[DICE_TYPE_D100][2] = res[DICE_TYPE_D10_TENS][2]*10
-        + res[DICE_TYPE_D10][2]
+    local d100 = {0,0}
+    d100[1] = res[DIE_TYPE_D10_TENS][1]
+    d100[2] = res[DIE_TYPE_D10_TENS][2]*10
+                + res[DIE_TYPE_D10][2]
+
+    res[DIE_TYPE_D100] = d100
 
     -- remove the individual dice
-    res[DICE_TYPE_D10_TENS] = nil
-    res[DICE_TYPE_D10] = nil
+    res[DIE_TYPE_D10_TENS] = nil
+    res[DIE_TYPE_D10] = nil
   end
 
   return res

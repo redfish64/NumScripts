@@ -38,6 +38,7 @@ function getColorTextFromColor(myColor)
    for _ in pairs(T) do count = count + 1 end
    return count
  end
+ 
 --gets the max number of sides on a die
 function getNumDieSides(obj)
   return tablelength(obj.getRotationValues())
