@@ -98,8 +98,8 @@ function setConstGlobalValue(myObj,name,myV)
     maybeHighlightObj("obj2",myObj)
   end
 
-  t[name]=v
-  Global.setTable(NUM_GLOBAL_VAR,ts)
+  t[name]=myV
+  Global.setTable(NUM_GLOBAL_VAR,t)
 
   ts[name] = myObj
   Global.setTable(NUM_GLOBAL_OBJ_SETTER_VAR,ts)
