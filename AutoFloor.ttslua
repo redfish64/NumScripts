@@ -1,0 +1,130 @@
+#include GlobalVars
+
+--NOTE that when I talk about "grid", I'm talking about my own made up
+--     version, not the official grid
+
+painting = false;
+
+function onLoad(save_state)
+  self.highlightOn({1,1,1,1})
+end
+
+--round up the value to the nearest fraction "ith"
+--so if we want to round up to an even 1/32, we use 32
+function ceilToNearestIth(v,ith)
+  return math.ceil(v * ith)/ith
+end
+
+function onPickUp(player_color)
+  bounds = self.getBounds()
+  print("s ",bounds.size)
+  print("c ",bounds.center)
+  print("o ",bounds.offset)
+  gridSize = bounds.size
+  gridSize.x = ceilToNearestIth(gridSize.x,32)
+  gridSize.z = ceilToNearestIth(gridSize.z,32)
+  gridOffset = {x=gridSize.x*0.5,gridSize.y,z=gridSize.z*0.5}
+  grid = calcGrid(self.getPosition())
+  pickedUp = true
+  isFirstLay = true -- indicates the first item has yet to be placed down.
+                    -- this determines the y-pos of all the other items
+end
+
+--calculate the closest "grid" position
+function calcGrid(pos)
+  local g = {}
+  g.x = math.floor(pos.x / gridSize.x) * gridSize.x + gridOffset.x
+  g.y = pos.y
+  g.z = math.floor(pos.z / gridSize.z) * gridSize.z + gridOffset.z
+  return g
+end
+
+function onDrop(player_color)
+  pickedUp = false
+end
+
+--finds any objects within the given bounding box
+--if "andBelow" is true, will search downwards infinitely
+--until it finds its first hit
+--will ignore painting_obj if its in the hit range
+--
+-- returns position of highest object within range, or nil if there
+-- aren't any
+function findHitsUnderPos(pos, size,andBelow)
+  print("ab ",andBelow)
+  if andBelow then distance = nil else distance = 0 end
+  local hits = Physics.cast({
+      origin       = pos,
+      direction    = {0,-1,0},
+      type         = 3,
+      size         = size,
+      max_distance = distance,
+      debug        = true,
+  })
+
+  local max_y = nil
+  for k,v in pairs(hits) do
+    local ho = v.hit_object
+    if(ho ~= self) then
+      local p = v.point
+      if(max_y == nil or max_y < p.y) then
+        max_y = p.y
+        print("hit ",k," ho ",ho)
+        print("hit ",k," po ",self)
+        print("hit ",k," p ",p)
+        print("hit ",k," d ",v.distance)
+        print("hit ",k," n ",v.normal)
+      end
+      --
+    end
+  end
+
+  return max_y
+end
+
+function onScriptingButtonDown(index, player_color)
+  print("scripting button ",index," pressed")
+  painting = true
+end
+
+function onScriptingButtonUp(index, player_color)
+  print("scripting button ",index," released")
+  painting = false
+end
+
+function onUpdate()
+  if(painting and pickedUp) then
+    local ng = calcGrid(self.getPosition())
+    ng.y = grid.y
+    if(ng.x ~= grid.x or ng.z ~= grid.z) then
+      print("ng ",ng)
+      grid = ng;
+
+      --determine the highest object underneath the current object
+      --this is where we place the grid
+      print("bounds ",gridSize)
+
+      if isFirstLay then
+        local max_y = findHitsUnderPos(ng, gridSize,true)
+        --if there is nothing underneath the object all the way down to infinity
+        if max_y == nil then return end
+
+        grid.y = max_y
+
+        isFirstLay = false
+      else
+        local max_y = findHitsUnderPos(ng, gridSize,false)
+        print("max_y ",max_y)
+        --if there is something in the way
+        if(max_y ~= nil and max_y > gridSize.y) then return end
+      end
+
+      pos = grid
+      other = self.clone({position=pos})
+      other.setLuaScript(nil)
+      other.setLock(true)
+      other.setPosition(pos)
+      print("other ",other)
+    end
+  end
+end

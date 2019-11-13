@@ -200,7 +200,7 @@ function isLastDieToRoll(obj)
       local et = er[die]
 
       if(isDieStillRolling(die,obj)) then
-        return false -- this will exit the function
+        return false
       end
     end
   end
