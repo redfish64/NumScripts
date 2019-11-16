@@ -1,0 +1,13 @@
+#include GlobalVars
+
+function onCollisionEnter(collision_info)
+  -- collision_info table:
+  --   collision_object    Object
+  --   contact_points      Table     {Vector, ...}
+  --   relative_velocity   Vector
+
+  --TODO 1.5 use a web url for this, or something else. I don't like
+  --depending on an autofloor object to currently exist
+  local autoFloorLua = getGlobalValue("AUTOFLOOR_LUA")
+  collision_info.collision_object.setLuaScript(autoFloorLua)
+end

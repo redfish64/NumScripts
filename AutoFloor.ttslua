@@ -3,10 +3,15 @@
 --NOTE that when I talk about "grid", I'm talking about my own made up
 --     version, not the official grid
 
-painting = false;
+PAINTING_MODE = 1;
+ERASING_MODE = 2;
+
+_mode = nil
 
 function onLoad(save_state)
   self.highlightOn({1,1,1,1})
+  setGlobalValue("AUTOFLOOR_LUA",self.getLuaScript())
+  _cloneDesc = self.getGUID().."_clone"
 end
 
 --round up the value to the nearest fraction "ith"
@@ -15,12 +20,19 @@ function ceilToNearestIth(v,ith)
   return math.ceil(v * ith)/ith
 end
 
+function addVectors(a,b)
+  return {x=a.x + b.x, y=a.y + b.y, z=a.z + b.z}
+end
+
 function onPickUp(player_color)
   bounds = self.getBounds()
-  print("s ",bounds.size)
-  print("c ",bounds.center)
-  print("o ",bounds.offset)
-  gridSize = bounds.size
+  -- print("s ",bounds.size)
+  -- print("c ",bounds.center)
+  -- print("o ",bounds.offset)
+  gridSize = bounds.size --addVectors(bounds.size,bounds.offset)
+  gridSize.y = math.min(0.5, gridSize.y)
+  -- print("gs ",gridSize.x,",",gridSize.y,",",gridSize.z)
+
   gridSize.x = ceilToNearestIth(gridSize.x,32)
   gridSize.z = ceilToNearestIth(gridSize.z,32)
   gridOffset = {x=gridSize.x*0.5,gridSize.y,z=gridSize.z*0.5}
@@ -28,6 +40,8 @@ function onPickUp(player_color)
   pickedUp = true
   isFirstLay = true -- indicates the first item has yet to be placed down.
                     -- this determines the y-pos of all the other items
+                    -- when drawing
+  --tryDoAction()
 end
 
 --calculate the closest "grid" position
@@ -48,83 +62,178 @@ end
 --until it finds its first hit
 --will ignore painting_obj if its in the hit range
 --
--- returns position of highest object within range, or nil if there
--- aren't any
+-- returns position we hit the highest object within range, and the object
+-- itself or nil if there aren't any
 function findHitsUnderPos(pos, size,andBelow)
-  print("ab ",andBelow)
   if andBelow then distance = nil else distance = 0 end
+
+  local max_y = nil
+  local max_ho = nil
+
+  -- we allow a little overlap in the y direction
+  size.y = size.y * 0.99
   local hits = Physics.cast({
       origin       = pos,
       direction    = {0,-1,0},
       type         = 3,
       size         = size,
       max_distance = distance,
-      debug        = true,
+      debug        = false,
   })
 
-  local max_y = nil
   for k,v in pairs(hits) do
     local ho = v.hit_object
     if(ho ~= self) then
-      local p = v.point
-      if(max_y == nil or max_y < p.y) then
-        max_y = p.y
-        print("hit ",k," ho ",ho)
-        print("hit ",k," po ",self)
-        print("hit ",k," p ",p)
-        print("hit ",k," d ",v.distance)
-        print("hit ",k," n ",v.normal)
+      local hb = ho.getBounds();
+      local p = v.point.y
+
+      if(max_y == nil or max_y < p) then
+        max_y = p
+        max_ho = ho
+        -- print("hit ",k," ho ",ho," p ",p," d ",v.distance," n ",v.normal)
+        -- print("pos ",pos.x," ",pos.y," ",pos.z)
+        -- print("myguid ",self.getGUID(),", otherguid ",ho.getGUID())
       end
       --
     end
   end
-
-  return max_y
+  return {max_y,max_ho}
 end
 
+
 function onScriptingButtonDown(index, player_color)
-  print("scripting button ",index," pressed")
-  painting = true
+  -- print("scripting button ",index," pressed")
+  bounds = self.getBounds()
+  if(index == 3) then
+    print("s ",bounds.size)
+    print("c ",bounds.center)
+    print("o ",bounds.offset)
+    print("p ",self.getPosition())
+  end
+
+  --we want the action to happen immediately, so we turn on "firstLay"
+  isFirstLay= true
+
+  if(_mode ~= nil) then
+    print("don't press scripting buttons at the same time")
+  end
+
+  _mode = index
 end
 
 function onScriptingButtonUp(index, player_color)
-  print("scripting button ",index," released")
-  painting = false
+  -- print("scripting button ",index," released")
+  if(_mode == index) then
+    _mode = nil
+  end
+end
+
+--modifies globals "grid" and "isFirstLay" to setup where we paint/erase
+--objects
+--
+--returns true if grid position changed
+function processGridMove(isDrawMode)
+  -- we use the center of the object as the position, because the actualy
+  -- position is a somewhat arbritrary location within the object.
+  local center = self.getBounds().center
+  local ng = calcGrid(center)
+
+  --determine the highest object underneath the current object
+  --this is where we place the grid
+  if isFirstLay then
+    ng.y = center.y
+    local max_hit = findHitsUnderPos(ng, gridSize,true)
+    local max_y = max_hit[1]
+    local ho = max_hit[2]
+
+    --if there is nothing underneath the object all the way down to infinity
+    if max_y == nil then return false end
+
+    isFirstLay = false
+
+    grid = ng;
+
+    --if we are trying to lay our tile directly on another tile that
+    --we already laid, we just set the grid to the same as the previous
+    --tile and not lay it
+    --
+    --This allows the user to "extend" a grid after pressing and letting
+    --go of the script button and then pressing again
+    if(ho.getDescription() == _cloneDesc) then
+      grid.y = ho.getBounds().center.y
+        --note that we don't return false here, because if the user is
+      --erasing, we still want to perform the action
+    else
+      --we want the grid in the center of the object we're about to lay,
+      --so we set the y so that it is in the center of the object if it
+      --is laid down on the one below it
+      grid.y = max_y + bounds.size.y * 0.5
+    end
+
+    --print("grid.y is ",grid.y," max_y is ",max_y)
+
+  else
+    --if the grid position hasn't changed
+    if(ng.x == grid.x and ng.z == grid.z) then
+      return false
+    end
+
+    -- print("processin ",ng)
+    --we've placed a block already, so we want to use the same y
+    --as before
+    ng.y = grid.y -- use the same old y coordinate
+    grid = ng
+    local max_hit = findHitsUnderPos(ng, gridSize,false)
+    -- print("ng.y is ",ng.y," max_y is ",max_hit[1]," max_ho is ",max_hit[2])
+    --if there is something in the way
+    if(max_hit[1] ~= nil) then return not isDrawMode end
+
+  end
+
+  return true
+end
+
+function drawAction()
+  --we add offset because our grid is based on the center of the bounding
+  --box, not the position. Adding offset converts it back to position
+  other = self.clone({position=addVectors(grid,bounds.offset)})
+  other.setDescription(_cloneDesc)
+  other.setLuaScript(nil)
+  other.setLock(true)
+  other.setPosition(addVectors(grid,bounds.offset))
+  -- print("new ",other)
+end
+
+function eraseAction()
+  -- print("erase!")
+
+  local max_hit = findHitsUnderPos(self.getPosition(), gridSize,true)
+  local ho = max_hit[2]
+   -- print("find!",ho," ",ho.getDescription()," ",_cloneDesc)
+  if(ho == nil or ho.getDescription() != _cloneDesc) then return end
+
+  -- print("die ",ho)
+  ho.destruct()
+end
+
+function tryDoAction()
+  --if we're not in any _mode or not picked up
+  if(_mode == nil or not pickedUp) then return end
+
+
+  if(_mode == PAINTING_MODE) then
+    --if we haven't moved in the grid
+    if(not processGridMove(true)) then return end
+
+    drawAction()
+  elseif(_mode == ERASING_MODE) then
+    --if we haven't moved in the grid
+    if(not processGridMove(false)) then return end
+
+    eraseAction()
+  end
 end
 
 function onUpdate()
-  if(painting and pickedUp) then
-    local ng = calcGrid(self.getPosition())
-    ng.y = grid.y
-    if(ng.x ~= grid.x or ng.z ~= grid.z) then
-      print("ng ",ng)
-      grid = ng;
-
-      --determine the highest object underneath the current object
-      --this is where we place the grid
-      print("bounds ",gridSize)
-
-      if isFirstLay then
-        local max_y = findHitsUnderPos(ng, gridSize,true)
-        --if there is nothing underneath the object all the way down to infinity
-        if max_y == nil then return end
-
-        grid.y = max_y
-
-        isFirstLay = false
-      else
-        local max_y = findHitsUnderPos(ng, gridSize,false)
-        print("max_y ",max_y)
-        --if there is something in the way
-        if(max_y ~= nil and max_y > gridSize.y) then return end
-      end
-
-      pos = grid
-      other = self.clone({position=pos})
-      other.setLuaScript(nil)
-      other.setLock(true)
-      other.setPosition(pos)
-      print("other ",other)
-    end
-  end
+  tryDoAction()
 end
